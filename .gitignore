@@ -1,0 +1,97 @@
+# Python caches and local tooling
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local environments and secrets
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Hugging Face / framework caches
+.cache/
+**/.cache/
+.simcot_checkpoint_monitor/
+**/.simcot_checkpoint_monitor/
+
+# Training, evaluation, and profiling outputs
+outputs/
+**/outputs/
+output/
+**/output/
+results/
+**/results/
+log/
+**/log/
+logs/
+**/logs/
+eval/
+**/eval/
+eval_log/
+**/eval_log/
+monitor_eval/
+**/monitor_eval/
+
+# Historical ablation run directories
+Ablations/**/eval-checkpoint-*/
+Ablations/**/eval_log-*/
+Ablations/**/intermediate_eval/
+Ablations/**/halt-*/
+
+# Large model/data artifacts. Store these in external object storage or a model hub.
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.parquet
+*.arrow
+*.tfevents.*
+
+# Runtime metadata and temporary files
+*.log
+*.lock
+*.tmp
+*.bak
+.source_checkpoint
+.DS_Store
+
+# Local-only implementations and experiment automation
+/CODI/
+/DDP/
+watch*.py
+watch*.sh
+/scripts/*codi*.sh
+/scripts/*ddp*.sh
+/src/*ddp*.py
+# These launchers import or start the excluded watcher.
+/scripts/preserve_simcot_checkpoint.py
+/scripts/train_llama8b_joint_simcot_lr_*.sh
+
+# Tests and their configuration stay in the development checkout.
+test/
+tests/
+test_*.py
+test_*.sh
+*_test.py
+/pyproject.toml
+
+# Local notes and editor/build artifacts
+/HYPERPARAMETER_EXPERIMENTS.md
+/METHOD.md
+/model_data_path
+nohup.out
+*.orig
+*.rej
+*.egg-info/
+build/
+dist/
+.tox/
+.nox/
