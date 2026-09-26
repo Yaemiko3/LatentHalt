@@ -38,11 +38,12 @@ Analysis artifacts default to `results/analysis/`; ablation runs use
 - PyTorch 2.5.1 with CUDA 12.4
 - A local copy of the base model and the datasets described below
 
-Create the environment once and install dependencies from the repository root:
+Download the source ZIP from the anonymous repository page linked in the
+submission. Extract it and open a terminal in the extracted repository root
+(the directory containing `requirements.txt`). Then create the environment
+and install the dependencies:
 
 ```bash
-git clone https://github.com/Yaemiko3/LatentHalt.git
-cd LatentHalt
 conda create -n latent-halt python=3.12 pip -y
 conda activate latent-halt
 conda install -c conda-forge jq -y
@@ -245,6 +246,8 @@ non-sensitive label if you need platform metadata in experiment summaries.
 
 The repository intentionally does not bundle Llama weights or benchmark data.
 Follow the licenses and terms of the base model and each dataset separately.
+The [reproduction guide](docs/training_comparison.md) describes the current
+training budget, dataset splits, final-model export, and evaluation commands.
 See the README files under `Analysis/` and `Ablations/`, and the implementations
 in `src/`, for details.
 

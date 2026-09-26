@@ -1,62 +1,98 @@
-# 训练结果对比
+# 复现配置与运行步骤
 
-更新日期：2026-09-03
+本文说明当前发布代码的配置、数据用途和运行流程，不提供实验结果表。
+所有命令均在解压后的仓库根目录运行；环境安装和外部数据布局见
+[README](../README.md)。
 
-## 阅读口径
+## 训练配置
 
-- 主指标是 GSM8K 测试集 exact-match accuracy，共 1319 条。Latent-Halt 保存时评估默认也用这 1319 条做 checkpoint 选择。
-- `best checkpoint` 是已有评测记录中的最高点；`训练末 step/epoch` 是该训练记录实际达到的末端。两者可能不同。
-- `overall` 只在有完整四数据集结果时列出，数据集为 GSM8K、GSM-Hard、Multi-Arith、SVAMP，共 3818 条。
-- 失败、dry-run、smoke 和纯评测运行不放入主比较表；有有效 checkpoint 评测的恢复/重启运行会保留并标注状态。
-- 有效 batch 的计算为 `每卡 batch × 梯度累计 × GPU 数`。没有记录 GPU 数时不臆测全局 batch。
+| LatentHalt 模型 | 训练入口 | 默认总轮数 | 每阶段轮数 |
+| --- | --- | ---: | ---: |
+| 1B | `scripts/train_llama1b_joint_simcot.sh` | 20 | 3 |
+| 3B | `scripts/train_llama3b_joint_simcot.sh` | 20 | 3 |
+| 8B | `scripts/train_llama8b_joint_simcot.sh` | 20 | 3 |
 
-## SFT
+上述入口从 stage 1 开始，最大 latent stage 为 10；前 18 轮完成 stage 1–6，
+第 19–20 轮执行 stage 7，然后结束训练。`NUM_EPOCHS` 可显式覆盖总轮数。
+SFT 默认训练 3 轮，独立 Coconut 入口默认训练 30 轮；这两个配置与
+LatentHalt 的 20 轮配置分别管理。
 
-| 模型/变体 | 每卡 batch | 累计 | 有效 batch | learning rate | 训练末 step / epoch | 最佳 checkpoint | GSM8K 最佳 acc | 完整四集 overall |
-| --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: |
-| Llama-1B SFT（最终运行） | 32 | 1 | 128（4 GPU） | `1e-4` | 9039 / 3.00 | `checkpoint-9039` | **52.24%**（689/1319） | 47.43%（1811/3818） |
-| Llama-3B SFT（默认 lr） | 32 | 2 | 64（1 GPU） | `1e-4` | 18075 / 3.00 | `checkpoint-18000` | 70.74%（933/1319） | - |
-| Llama-3B SFT（lr 对照） | 32 | 2 | 64（1 GPU） | `2e-5` | 18075 / 3.00 | `checkpoint-17500` | **74.75%**（986/1319） | - |
-| Llama-3B SFT（lr 对照） | 32 | 2 | 64（1 GPU） | `5e-5` | 18075 / 3.00 | `checkpoint-14500` | 73.77%（973/1319） | - |
-| Llama-8B SFT | 16 | 8 | 未记录 | `2e-5` | 2259 / 3.00 | `checkpoint-2259` | 67.70%（893/1319） | 51.49%（1966/3818） |
+首次运行使用新的 `OUTPUT_DIR`，并设置 `RESUME_FROM_CHECKPOINT=none`。
+恢复训练时，20 轮表示包含已完成轮数的总训练预算。
 
-3B 学习率对照中，`2e-5` 在已评测 checkpoint 上最高；`5e-5` 次之，`1e-4` 最低。1B 和 8B 的完整四集结果来自最终模型目录，3B 当前保留的逐 checkpoint 结果主要是 GSM8K。
+## 数据划分与模型导出
 
-## Latent-Halt / SIM-CoT
+- 训练数据：`gsm8k-aug/data/train-*.parquet`。
+- 训练期间的验证损失：`gsm8k-aug/data/validation-*.parquet`，默认每轮计算一次。
+- 终止区域拟合：仅使用 GSM8K-Aug `validation` 划分，来源记录在 region 产物中。
+- GSM8K 最终评测：`gsm8k-aug/data/test-*.parquet`，由单独的评测入口执行。
 
-表中的 `base lr / decoder lr` 分别是主模型和辅助 decoder 的学习率。训练从对应 SFT 初始化，默认 curriculum 为 33 epoch、每 500 step 保存并在 GSM8K 上评估。
+当前发布的 LatentHalt 训练入口按步数保存 checkpoint，默认每 500 步保存一次。
+正常完成训练后，导出当时的模型到 `OUTPUT_DIR/base_model/`；启用辅助 decoder
+时，还导出 `OUTPUT_DIR/auxiliary_decoder/`。当前入口没有启用按验证损失恢复
+最佳模型，也不包含按 GSM8K 测试集分数选择 checkpoint 的 watcher。
+因此，下述评测流程使用正常结束训练时导出的模型。
 
-| 模型/变体 | 每卡 batch | 累计 | GPU / 有效 batch | base lr / decoder lr | 训练末 step / epoch | 最佳 checkpoint | GSM8K 最佳 acc | 状态/备注 |
-| --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- |
-| Llama-1B Latent-Halt | 32 | 2 | 未记录 | `1e-4 / 1e-5` | 约 197,695 / 32.81 | `checkpoint-123000` | **37.00%**（488/1319） | 四集 overall 32.45%（1239/3818） |
-| Llama-3B Latent-Halt（restart，bucket-aligned） | 16 | 1 | 4 / 64 | `5e-5 / 1e-5` | 约 92,000 / 15.27 | `checkpoint-92000` | **39.50%**（521/1319） | 索引状态 failed；评测日志有效 |
-| Llama-3B Latent-Halt（b8-ga2，recovery） | 8 | 2 | 4 / 64 | `5e-5 / 1e-5` | 198825 / 33.00 | `checkpoint-172500` | 38.89%（513/1319） | 索引状态 completed |
-| Llama-8B Latent-Halt（b8-ga2，FSDP/layout-fix） | 8 | 2 | 4 / 64 | `2e-5 / 1e-5` | 约 72,000 / 11.99 | `checkpoint-66500` | **39.58%**（522/1319） | 评测日志可见的末端为 step 72000 |
+## 运行流程
 
-3B 的两个恢复链路全局 batch 都是 64，但局部 batch/累计方式不同；已有记录显示 `b16 × 1` 的峰值略高于 `b8 × 2`。8B 的最佳记录与 3B restart 峰值接近，当前记录最高为 8B `checkpoint-66500` 的 39.58%。
+先设置外部路径，并按模型尺寸选择相应的 SFT 入口：
 
-## COCONUT（旧基线）
+```bash
+export DATA_ROOT=/path/to/datasets
+export CACHE_DIR=/path/to/cache/huggingface
+export TRAIN_FILE="$DATA_ROOT/gsm8k-aug/data/train-00000-of-00001.parquet"
+export VALIDATION_FILE="$DATA_ROOT/gsm8k-aug/data/validation-00000-of-00001.parquet"
 
-项目还保留一条 1B COCONUT 链路。两次正式记录均为 4 GPU，源码参数为每卡 batch 8、梯度累计 16、learning rate `1e-4`、30 epoch，有效 batch 为 512；训练末为 22590 step / 30.00 epoch。结果目录只有最终 `base_model` 的评测，没有逐 checkpoint accuracy，因此不能可靠地给出逐 checkpoint 的最佳点。
+# 1B 示例；3B / 8B 使用相应尺寸的基础模型和 SFT 启动脚本。
+MODEL_PATH=/path/to/models/Llama-3.2-1B-Instruct \
+  bash scripts/train_llama1b_sft_cot.sh
+```
 
-最终 `base_model` 在 GSM8K 上为 10.69%（141/1319），四集 overall 为 6.39%（244/3818）；固定使用 10 个 latent block，并发生全量 max-budget fallback。该结果只作为历史基线，不与动态 halt 的 Latent-Halt 主表排名。
+在 LatentHalt 训练前，用对应尺寸的 SFT 模型拟合 region。1B / 8B 分别运行
+`Analysis/run_llama1b_think_geometry.sh` / `Analysis/run_llama8b_think_geometry.sh`。
+3B 通过通用入口显式指定模型和输出路径：
 
-## 同尺寸的直观比较
+```bash
+MODEL_PATH=outputs/sft-cot-llama3b \
+OUTPUT_DIR=results/analysis/think_hidden_geometry_llama3b \
+  bash Analysis/run_llama1b_think_geometry.sh
+```
 
-以下差值仅用于定位，不代表严格的同协议因果比较：SFT 使用显式 CoT、答案上限 256；Latent-Halt 使用连续 latent block、greedy 解码和答案上限 64。
+选择一个尺寸训练。各入口的模型和 region 路径可按 README 覆盖：
 
-| 尺寸 | SFT 最佳 GSM8K | Latent-Halt 最佳 GSM8K | acc 差值（latent - SFT） |
-| --- | ---: | ---: | ---: |
-| 1B | 52.24% | 37.00% | -15.24 pp |
-| 3B | 74.75%（lr `2e-5`） | 39.50%（restart 峰值） | -35.25 pp |
-| 8B | 67.70% | 39.58% | -28.12 pp |
+```bash
+NUM_EPOCHS=20 RESUME_FROM_CHECKPOINT=none \
+OUTPUT_DIR=outputs/latent-halt-llama1b \
+  bash scripts/train_llama1b_joint_simcot.sh
 
-当前结果显示，主要瓶颈在 latent 推理路径的训练/解码一致性，而不是 SFT 的显式答案生成能力。若要作严格结论，应固定答案长度、解码策略和数据集后重新评测。
+# 3B
+NUM_EPOCHS=20 RESUME_FROM_CHECKPOINT=none \
+LLAMA3B_TRAIN_FILE="$TRAIN_FILE" LLAMA3B_VALIDATION_FILE="$VALIDATION_FILE" \
+OUTPUT_DIR=outputs/latent-halt-llama3b \
+  bash scripts/train_llama3b_joint_simcot.sh
 
-## 数据来源
+# 8B
+NUM_EPOCHS=20 RESUME_FROM_CHECKPOINT=none \
+OUTPUT_DIR=outputs/latent-halt-llama8b \
+  bash scripts/train_llama8b_joint_simcot.sh
+```
 
-- 训练运行索引：`log/experiments.jsonl`
-- SFT 结果：`/data-juice-nfs/latent-halt/results/eval-sft-cot-llama3b-*-checkpoint-*/summary.json`、`/data-juice-nfs/latent-halt/results/eval-sft-cot-debug/summary.json`、`/data-juice-nfs/latent-halt/results/eval-sft-cot-full/summary.json`、`/data-juice-nfs/latent-halt/results/eval-sft-cot-llama8b/summary.json`
-- Latent-Halt 最高点：`log/latent-halt-3b-base5e-5-dec1e-5-restart/checkpoint_eval.log`、`log/latent-halt-3b-base5e-5-dec1e-5-b8-ga2-recovery109000/checkpoint_eval.log`、`log/latent-halt-8b-base2e-5-dec1e-5-b8-ga2-fsdp-layoutfix2/checkpoint_eval.log`，以及 `log/experiments.jsonl` 中的 1B monitor 记录
-- 训练超参：各输出目录的 `training_args.bin` 与 `simcot_config.json`
-- 默认值和 batch 语义：`docs/training_workflow.md`、`scripts/train_latent_halt.py`、`src/workflow_backend.py`
+用训练完成后的 `base_model` 评测，并使用同尺寸的 region。以下以 8B 为例：
+
+```bash
+MODEL_PATH=outputs/latent-halt-llama8b/base_model \
+TOKENIZER_PATH=outputs/latent-halt-llama8b/base_model \
+THINK_REGION_FILE=results/analysis/think_hidden_geometry_llama8b/think_region.safetensors \
+RESULTS_DIR=results/latent-halt-llama8b \
+  bash scripts/eval_llama1b_latent.sh --datasets gsm8k gsm-hard multi-arith svamp
+```
+
+全量评测时不要设置 `--max_samples`。评测入口保存逐题输出及汇总指标，
+便于在自己的运行环境中核对。
+
+## 记录与核对
+
+保留实际运行的命令、环境变量覆盖、训练配置、模型导出目录和 region 的
+`manifest.json`。更改 batch size、梯度累计或 GPU 数量时，记录有效 batch
+为 `每卡 batch × 梯度累计 × GPU 数`。消融实验入口见 `Ablations/`；比较同一
+训练预算时，显式使用 `NUM_EPOCHS=20`，并核对各消融入口的其他默认参数。
