@@ -29,9 +29,9 @@ export NUM_GPUS="${#VISIBLE_GPU_IDS[@]}"
 # Match coconut/train_llama8b_gsm8k_aug.sh: one latent token per reasoning step.
 export C_THOUGHT="${C_THOUGHT:-1}"
 
-# Keep three epochs per stage and stop after 22 training epochs.
+# Keep three epochs per stage and stop after 20 training epochs.
 export EPOCHS_PER_STAGE="${EPOCHS_PER_STAGE:-3}"
-export NUM_EPOCHS="${NUM_EPOCHS:-22}"
+export NUM_EPOCHS="${NUM_EPOCHS:-20}"
 
 # Default: 4 examples x 8 accumulation steps x 2 H200 GPUs = global batch 64.
 export PER_DEVICE_BATCH_SIZE="${PER_DEVICE_BATCH_SIZE:-4}"

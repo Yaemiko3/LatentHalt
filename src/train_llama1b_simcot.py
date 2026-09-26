@@ -245,7 +245,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--log_dir", type=Path, default=Path(os.environ.get("LATENTHALT_DURABLE_LOG_ROOT", DURABLE_OUTPUT_ROOT.parent / "logs")))
     parser.add_argument("--c_thought", type=int, default=2)
     parser.add_argument("--epochs_per_stage", type=int, default=3)
-    parser.add_argument("--max_latent_stage", type=int, default=7, help="Final latent-block stage for the seven-stage (21-epoch) curriculum.")
+    parser.add_argument("--max_latent_stage", type=int, default=7, help="Maximum latent-block stage; training may stop before the curriculum completes.")
     parser.add_argument("--curriculum_start_stage", type=int, default=1)
     parser.add_argument("--region_loss_weight", type=float, default=5.0)
     parser.add_argument("--region_negative_loss_weight", type=float, default=1.0)
@@ -259,7 +259,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--decoder_loss_normalization", choices=["block", "token"], default="block"
     )
-    parser.add_argument("--num_train_epochs", type=float, default=21.0)
+    parser.add_argument("--num_train_epochs", type=float, default=20.0)
     parser.add_argument("--max_steps", type=int, default=-1)
     parser.add_argument("--max_length", type=int, default=512)
     parser.add_argument("--decoder_max_length", type=int, default=512)

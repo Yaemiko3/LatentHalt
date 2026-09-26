@@ -200,10 +200,9 @@ matching `../coconut/train_llama8b_gsm8k_aug.sh`. Its defaults are two H200 GPUs
 per-device train/eval batch size 4, and gradient accumulation 8 (global training
 batch 64). Override these variables for a different GPU count or memory budget.
 
-Training defaults to `NUM_EPOCHS=22` and `EPOCHS_PER_STAGE=3`, with
-`MAX_LATENT_STAGE=10`. Stages 1–7 run for three epochs each; epoch 22 runs
-stage 8, then training ends. This matches Coconut 8B's 22 executed training
-epochs while preserving latent-halt's three-epoch stage schedule.
+The 1B, 3B, and 8B LatentHalt launchers default to `NUM_EPOCHS=20` and
+`EPOCHS_PER_STAGE=3`, with `MAX_LATENT_STAGE=10`. Stages 1–6 run for three
+epochs each; epochs 19–20 run stage 7, then training ends.
 
 FSDP uses `full_shard auto_wrap`, wraps `LlamaDecoderLayer`, and keeps
 `use_orig_params=True` with forward/backward prefetch disabled. BF16 and TF32
